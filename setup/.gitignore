@@ -1,0 +1,11 @@
+*.gz
+*.ext4
+*.pub
+*.log
+*.upstream
+*.id_rsa
+vmlinux*
+
+
+
+

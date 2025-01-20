@@ -1,0 +1,28 @@
+# Use a minimal base image
+FROM debian:bullseye-slim
+
+# Set environment variables for non-interactive installations
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install required dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    iptables \
+    ebtables \
+    socat \
+    conntrack \
+    iproute2 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Set Kubernetes version explicitly
+ARG K8S_VERSION="v1.28.2"
+
+# Download Kubernetes binaries for the amd64 architecture
+RUN curl -LO "https://dl.k8s.io/release/${K8S_VERSION}/bin/linux/amd64/kubeadm" && \
+    curl -LO "https://dl.k8s.io/release/${K8S_VERSION}/bin/linux/amd64/kubectl" && \
+    curl -LO "https://dl.k8s.io/release/${K8S_VERSION}/bin/linux/amd64/kubelet" && \
+    chmod +x kubeadm kubectl kubelet && \
+    mv kubeadm kubectl kubelet /usr/local/bin/
+
+# Set entrypoint for debugging or customization
+CMD ["/bin/bash"]
