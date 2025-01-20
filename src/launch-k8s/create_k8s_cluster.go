@@ -49,15 +49,15 @@ func main() {
 
 	vmID := "vmID"
 	socketPath := "./microvm-k8s-cluster.sock"
-	kernelPath := "./vmlinux-5.10.225"
-	rootFSPath := "./rootfs"
+	kernelPath := "./setup/vmlinux-5.10.225"
+	rootFSPath := "./setup/k8s-img-rootfs.ext4"
 
 	// Firecracker microVM launch
 	launchK8sNode(ctx, vmID, socketPath, kernelPath, rootFSPath)
 
 	// Example VM configuration
 	user := "root"
-	privateKeyPath := "/path/to/private/key"
+	privateKeyPath := "./setup/k8s-img.id_rsa"
 	controlPlaneIP := "192.168.1.101"
 	workerIPs := []string{"192.168.1.102", "192.168.1.103"}
 
