@@ -14,7 +14,7 @@ import (
 
 var k8sClient *kubernetes.Clientset
 
-func main() {
+func CreateTenant() {
 	// Initialize Kubernetes client
 	config, err := rest.InClusterConfig()
 	if err != nil {

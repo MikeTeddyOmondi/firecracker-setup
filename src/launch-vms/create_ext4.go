@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 )
 
-func main() {
+func TarballToExt4() {
 	// Define paths
 	tarGzPath := "k8s-img.tar.gz"
 	rootfsDir := "rootfs"

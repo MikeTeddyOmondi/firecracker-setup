@@ -2,13 +2,16 @@ package main
 
 import (
 	"context"
+	// "io"
 	"log"
-	"path/filepath"
+
+	// "path/filepath"
 
 	"github.com/firecracker-microvm/firecracker-go-sdk"
+	"github.com/firecracker-microvm/firecracker-go-sdk/client/models"
 )
 
-func main() {
+func StartMachine() {
 	ctx := context.Background()
 
 	// Configuration for multiple VMs
@@ -18,8 +21,8 @@ func main() {
 		KernelPath string
 		RootFSPath string
 	}{
-		{"vm1", "/tmp/firecracker-vm1.sock", "./vmlinux", "./rootfs-vm1.ext4"},
-		{"vm2", "/tmp/firecracker-vm2.sock", "./vmlinux", "./rootfs-vm2.ext4"},
+		{"vm1", "/tmp/firecracker-vm1.sock", "./setup/vmlinux-5.10.225", "./setup/ubuntu-24.04.ext4"},
+		{"vm2", "/tmp/firecracker-vm2.sock", "./setup/vmlinux-5.10.225", "./setup/ubuntu-24.04.ext4"},
 	}
 
 	// Launch all VMs
@@ -42,26 +45,45 @@ func main() {
 }
 
 func launchFirecrackerInstance(ctx context.Context, vmID string, socketPath string, kernelPath string, rootFSPath string) error {
+	var vcpuCount int64 = 1
+	var memSizeMib int64 = 512
+	smt := false
+
+	driveID := "rootfs"
+	isRootDevice := true
+	isReadOnly := false
+	pathOnHost := rootFSPath // "./setup-microvm/ubuntu-24.04.ext4" // "./setup-microvm/root-drive-with-ssh.img"
+
 	cfg := firecracker.Config{
 		SocketPath: socketPath,
-		MachineCfg: firecracker.MachineConfiguration{
-			VCpuCount:   2,
-			MemSizeMib:  512,
-			HtEnabled:   true,
+		MachineCfg: models.MachineConfiguration{
+			VcpuCount:  &vcpuCount,
+			MemSizeMib: &memSizeMib,
+			Smt:        &smt,
 		},
-		Drives: []firecracker.Drive{
+		Drives: []models.Drive{
 			{
-				DriveID:      firecracker.String("rootfs"),
-				PathOnHost:   firecracker.String(rootFSPath),
-				IsRootDevice: firecracker.Bool(true),
-				IsReadOnly:   firecracker.Bool(false),
+				DriveID:      &driveID,
+				IsRootDevice: &isRootDevice,
+				IsReadOnly:   &isReadOnly,
+				PathOnHost:   &pathOnHost,
 			},
 		},
 		KernelImagePath: kernelPath,
 	}
 
+	// cmdBuilderOpts := firecracker.VMCommandBuilder{
+	// 	bin:        "./setup/vmlinux-5.10.225",
+	// 	args:       []string{},
+	// 	socketPath: "",
+	// 	stdin:      io.Reader,
+	// 	stdout:     io.Writer,
+	// 	stderr:     io.Writer,
+	// }
+
 	// Create the Firecracker command
-	cmd := firecracker.NewCommandBuilder().
+	cmdBuilderOpts := firecracker.VMCommandBuilder{}
+	cmd := firecracker.VMCommandBuilder(cmdBuilderOpts).
 		WithSocketPath(socketPath).
 		Build(ctx)
 
@@ -79,4 +101,3 @@ func launchFirecrackerInstance(ctx context.Context, vmID string, socketPath stri
 	log.Printf("Firecracker VM %s started successfully.", vmID)
 	return nil
 }
-

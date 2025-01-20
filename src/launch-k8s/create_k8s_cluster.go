@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/firecracker-microvm/firecracker-go-sdk"
+	"github.com/firecracker-microvm/firecracker-go-sdk/client/models"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -16,8 +18,8 @@ func executeSSHCommand(user, host, privateKeyPath, command string) (string, erro
 	}
 
 	config := &ssh.ClientConfig{
-		User: user,
-		Auth: []ssh.AuthMethod{ssh.PublicKeys(key)},
+		User:            user,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(key)},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 
@@ -46,11 +48,11 @@ func main() {
 	ctx := context.Background()
 
 	vmID := "vmID"
-	socketPath := "./microvm-k8s-cluster.sock" 
+	socketPath := "./microvm-k8s-cluster.sock"
 	kernelPath := "./vmlinux-5.10.225"
 	rootFSPath := "./rootfs"
 
-	// Firecracker microVM launch 
+	// Firecracker microVM launch
 	launchK8sNode(ctx, vmID, socketPath, kernelPath, rootFSPath)
 
 	// Example VM configuration
@@ -115,30 +117,60 @@ func initControlPlane(user, host, privateKeyPath string) error {
 }
 
 func launchK8sNode(ctx context.Context, vmID string, socketPath string, kernelPath string, rootFSPath string) error {
-    // Firecracker machine configuration
-    cfg := firecracker.Config{
-        SocketPath: socketPath,
-        MachineCfg: firecracker.MachineConfiguration{
-            VcpuCount:  4,
-            MemSizeMib: 4096,
-        },
-        Drives: []firecracker.Drive{
-            {
-                DriveID:      firecracker.String("rootfs"),
-                PathOnHost:   firecracker.String(rootFSPath),
-                IsRootDevice: true,
-                IsReadOnly:   false,
-            },
-        },
-        KernelImagePath: kernelPath,
-    }
+	// Firecracker machine configuration
+	var vcpuCount int64 = 1
+	var memSizeMib int64 = 512
+	smt := false
 
-    // Start Firecracker VM
-    cmd := firecracker.NewCommandBuilder().WithSocketPath(socketPath).Build(ctx)
-    machine, err := firecracker.NewMachine(ctx, cfg, firecracker.WithProcessRunner(cmd))
-    if err != nil {
-        return err
-    }
+	driveID := "rootfs"
+	isRootDevice := true
+	isReadOnly := false
+	pathOnHost := rootFSPath // "./setup-microvm/ubuntu-24.04.ext4" // "./setup-microvm/root-drive-with-ssh.img"
 
-    return machine.Start(ctx)
+	cfg := firecracker.Config{
+		SocketPath: socketPath,
+		MachineCfg: models.MachineConfiguration{
+			VcpuCount:  &vcpuCount,
+			MemSizeMib: &memSizeMib,
+			Smt:        &smt,
+		},
+		Drives: []models.Drive{
+			{
+				DriveID:      &driveID,
+				IsRootDevice: &isRootDevice,
+				IsReadOnly:   &isReadOnly,
+				PathOnHost:   &pathOnHost,
+			},
+		},
+		KernelImagePath: kernelPath,
+	}
+
+	// cmdBuilderOpts := firecracker.VMCommandBuilder{
+	// 	bin:        "./setup/vmlinux-5.10.225",
+	// 	args:       []string{},
+	// 	socketPath: "",
+	// 	stdin:      io.Reader,
+	// 	stdout:     io.Writer,
+	// 	stderr:     io.Writer,
+	// }
+
+	// Create the Firecracker command
+	cmdBuilderOpts := firecracker.VMCommandBuilder{}
+	cmd := firecracker.VMCommandBuilder(cmdBuilderOpts).
+		WithSocketPath(socketPath).
+		Build(ctx)
+
+	// Start Firecracker VM
+	machine, err := firecracker.NewMachine(ctx, cfg, firecracker.WithProcessRunner(cmd))
+	if err != nil {
+		return err
+	}
+
+	// Start the VM
+	if err := machine.Start(ctx); err != nil {
+		return err
+	}
+
+	log.Printf("Firecracker VM %s started successfully.", vmID)
+	return nil
 }
