@@ -7,5 +7,6 @@
 **/*vmlinux*
 **/*img
 **/*.tar
+**/*.sock
 
 
