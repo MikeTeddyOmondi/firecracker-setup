@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"fmt"
+	"golang.org/x/crypto/ssh"
 	"io"
 	"log"
 	"net"
@@ -38,6 +39,8 @@ type Node struct {
 	IP       string
 	Machine  *firecracker.Machine
 	RootPath string
+	Username string
+	Password string
 }
 
 type Cluster struct {
@@ -70,6 +73,8 @@ func (c *Cluster) Provision() error {
 		Role:     "master",
 		IP:       c.Config.NetworkConfig.getNextIP("10"),
 		RootPath: filepath.Join(baseDir, "master"),
+		Username: "username",
+		Password: "password",
 	}
 
 	workers := make([]*Node, c.Config.NodeCount-1)
@@ -79,6 +84,8 @@ func (c *Cluster) Provision() error {
 			Role:     "worker",
 			IP:       c.Config.NetworkConfig.getNextIP(fmt.Sprintf("%d", 20+i)),
 			RootPath: filepath.Join(baseDir, fmt.Sprintf("worker-%d", i)),
+			Username: "username",
+			Password: "password",
 		}
 	}
 
@@ -361,25 +368,65 @@ func (c *Cluster) waitForSSH(node *Node) error {
 
 // checkSSH attempts to establish SSH connection
 func (c *Cluster) checkSSH(node *Node) error {
-	cmd := exec.Command("ssh",
-		"-o", "StrictHostKeyChecking=no",
-		"-o", "ConnectTimeout=5",
-		fmt.Sprintf("root@%s", node.IP),
-		"echo", "hello")
+	// Configure SSH client
+	config := &ssh.ClientConfig{
+		User: node.Username,
+		Auth: []ssh.AuthMethod{
+			ssh.Password(node.Password),
+		},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // Skip host key checking
+		Timeout:         5 * time.Second,             // Set connection timeout
+	}
 
-	return cmd.Run()
+	// Dial SSH connection
+	conn, err := ssh.Dial("tcp", fmt.Sprintf("%s:22", node.IP), config)
+	if err != nil {
+		return fmt.Errorf("failed to connect to %s: %w", node.IP, err)
+	}
+	defer conn.Close()
+
+	// Run a command
+	session, err := conn.NewSession()
+	if err != nil {
+		return fmt.Errorf("failed to create session: %w", err)
+	}
+	defer session.Close()
+
+	// Run echo command
+	if err := session.Run("echo hello"); err != nil {
+		return fmt.Errorf("failed to run command: %w", err)
+	}
+
+	return nil
 }
 
 // executeCommand executes a command on the node via SSH
 func (c *Cluster) executeCommand(node *Node, command string) error {
-	cmd := exec.Command("ssh",
-		"-o", "StrictHostKeyChecking=no",
-		fmt.Sprintf("root@%s", node.IP),
-		command)
+	// Use the SSH client from checkSSH for command execution
+	config := &ssh.ClientConfig{
+		User: node.Username,
+		Auth: []ssh.AuthMethod{
+			ssh.Password(node.Password),
+		},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // Skip host key checking
+		Timeout:         5 * time.Second,             // Set connection timeout
+	}
 
-	output, err := cmd.CombinedOutput()
+	conn, err := ssh.Dial("tcp", fmt.Sprintf("%s:22", node.IP), config)
 	if err != nil {
-		return fmt.Errorf("command failed: %v, output: %s", err, string(output))
+		return fmt.Errorf("failed to connect to %s: %w", node.IP, err)
+	}
+	defer conn.Close()
+
+	session, err := conn.NewSession()
+	if err != nil {
+		return fmt.Errorf("failed to create SSH session: %w", err)
+	}
+	defer session.Close()
+
+	// Execute the command
+	if err := session.Run(command); err != nil {
+		return fmt.Errorf("failed to execute command on %s: %w", node.ID, err)
 	}
 
 	return nil
@@ -387,7 +434,7 @@ func (c *Cluster) executeCommand(node *Node, command string) error {
 
 // getJoinCommand retrieves the kubeadm join command from the master
 func (c *Cluster) getJoinCommand(master *Node) (string, error) {
-	cmd := exec.Command("ssh",
+	cmd := exec.Command("ssh", "-p", "password",
 		"-o", "StrictHostKeyChecking=no",
 		fmt.Sprintf("root@%s", master.IP),
 		"kubeadm token create --print-join-command")
@@ -416,7 +463,7 @@ func CreateTapDevice(vmID string) (string, error) {
 
 	upCmd := exec.Command("ip", "link", "set", "dev", tapName, "up")
 	if output, err := upCmd.CombinedOutput(); err != nil {
-		return "",fmt.Errorf("failed to bring up TAP device %s: %v\nOutput: %s", tapName, err, string(output))
+		return "", fmt.Errorf("failed to bring up TAP device %s: %v\nOutput: %s", tapName, err, string(output))
 	}
 
 	log.Printf("TAP device %s created and brought up successfully.", tapName)

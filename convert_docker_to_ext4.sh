@@ -18,7 +18,7 @@ docker save -o "$TARBALL_PATH" "$IMAGE_NAME"
 
 # Step 2: Create an ext4 filesystem image
 echo "Creating ext4 filesystem image..."
-dd if=/dev/zero of="$EXT4_IMAGE" bs=1M count=64  # 64MB image
+dd if=/dev/zero of="$EXT4_IMAGE" bs=1M count=512  # 512MB image
 mkfs.ext4 "$EXT4_IMAGE"
 
 # Step 3: Mount the ext4 image

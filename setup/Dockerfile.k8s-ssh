@@ -1,0 +1,50 @@
+# Use a minimal base image
+FROM debian:bullseye-slim
+
+# Set environment variables for non-interactive installations
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install required dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    iptables \
+    ebtables \
+    socat \
+    conntrack \
+    iproute2 \
+    openssh-server \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Set Kubernetes version explicitly
+ARG K8S_VERSION="v1.28.2"
+
+# Download Kubernetes binaries for the amd64 architecture
+RUN curl -LO "https://dl.k8s.io/release/${K8S_VERSION}/bin/linux/amd64/kubeadm" && \
+    curl -LO "https://dl.k8s.io/release/${K8S_VERSION}/bin/linux/amd64/kubectl" && \
+    curl -LO "https://dl.k8s.io/release/${K8S_VERSION}/bin/linux/amd64/kubelet" && \
+    chmod +x kubeadm kubectl kubelet && \
+    mv kubeadm kubectl kubelet /usr/local/bin/
+
+# Create an SSH user
+ARG SSH_USER=username
+ARG SSH_PASSWORD=password
+
+RUN useradd -m -s /bin/bash ${SSH_USER} && \
+    echo "${SSH_USER}:${SSH_PASSWORD}" | chpasswd && \
+    mkdir -p /home/${SSH_USER}/.ssh && \
+    chmod 700 /home/${SSH_USER}/.ssh
+
+# Configure SSH
+RUN mkdir -p /var/run/sshd && \
+    echo "PermitRootLogin no" >> /etc/ssh/sshd_config && \
+    echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config && \
+    echo "AllowUsers ${SSH_USER}" >> /etc/ssh/sshd_config && \
+    echo "PermitTunnel yes" >> /etc/ssh/sshd_config
+
+# Expose SSH port
+EXPOSE 22
+
+# Set entrypoint to start the SSH server
+CMD ["/usr/sbin/sshd", "-D"]
+
+
