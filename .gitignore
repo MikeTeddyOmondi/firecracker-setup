@@ -9,4 +9,6 @@
 **/*.tar
 **/*.sock
 
+firecracker-k8s
+/firecracker-k8s-cluster/
 

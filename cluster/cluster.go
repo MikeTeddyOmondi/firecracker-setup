@@ -1,4 +1,4 @@
-package main
+package cluster
 
 import (
 	"context"
@@ -59,14 +59,14 @@ func NewCluster(config ClusterConfig) *Cluster {
 
 func (c *Cluster) Provision() error {
 	// Create base working directory for the cluster
-	baseDir := filepath.Join("/var/lib/firecracker", c.Config.Name)
+	baseDir := filepath.Join("./firecracker-k8s-cluster", c.Config.Name)
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
 		return fmt.Errorf("failed to create cluster directory: %v", err)
 	}
 
 	// Initialize nodes
 	masterNode := &Node{
-		ID:       fmt.Sprintf("%s-master", c.Config.Name),
+		ID:       fmt.Sprintf("%s-ms", c.Config.Name),
 		Role:     "master",
 		IP:       c.Config.NetworkConfig.getNextIP("10"),
 		RootPath: filepath.Join(baseDir, "master"),
@@ -75,7 +75,7 @@ func (c *Cluster) Provision() error {
 	workers := make([]*Node, c.Config.NodeCount-1)
 	for i := range workers {
 		workers[i] = &Node{
-			ID:       fmt.Sprintf("%s-worker-%d", c.Config.Name, i),
+			ID:       fmt.Sprintf("%s-wk-%d", c.Config.Name, i),
 			Role:     "worker",
 			IP:       c.Config.NetworkConfig.getNextIP(fmt.Sprintf("%d", 20+i)),
 			RootPath: filepath.Join(baseDir, fmt.Sprintf("worker-%d", i)),
@@ -130,84 +130,65 @@ func (c *Cluster) provisionNode(node *Node) error {
 		return err
 	}
 
-	var vcpuCount int64 = 1
-	var memSizeMib int64 = 512
-	smt := false
-	
-	vmID := "vm"
+	tapDevice, err := CreateTapDevice(node.ID)
+	if err != nil {
+		return fmt.Errorf("failed to create TAP device: %v", err)
+	}
+	// var vcpuCount int64 = 1
+	// var memSizeMib int64 = 512
+	smt := true
+
+	// vmID := "vm"
 	// staticIP := "192.168.1.102"
 	driveID := "rootfs"
 	isRootDevice := true
 	isReadOnly := false
-	pathOnHost := "./setup/ubuntu-24.04.ext4" // "./setup-microvm/ubuntu-24.04.ext4" // "./setup-microvm/root-drive-with-ssh.img"
-	socketPath := "/tmp/firecracker-vm.sock"
+	// pathOnHost := "./setup/ubuntu-24.04.ext4" // "./setup-microvm/root-drive-with-ssh.img"
+	// socketPath := "/tmp/firecracker-vm.sock"
 	kernelPath := "./setup/vmlinux-5.10.225"
 
-	ifaceID := "eth0"
+	// ifaceID := "tap0" // "eth0" // "enp2s0"
 	// tapName := "tap-" + vmID
-	macAddress := "AA:FC:00:00:00:0" + string(vmID[len(vmID)-1])
+	// macAddress := "AA:FC:00:00:00:0" + string(vmID[len(vmID)-1])
+
+	parsedStaticIP := net.ParseIP(node.IP)
+	fmt.Println(parsedStaticIP)
 
 	// Configure network
-	// networkInterfaces := []firecracker.NetworkInterface{{
-	// 	StaticConfiguration: &firecracker.StaticNetworkConfiguration{
-	// 		HostDevName: fmt.Sprintf("tap%s", node.ID),
-	// 		IPConfiguration: &firecracker.IPConfiguration{
-	// 			IPAddr:  node.IP,
-	// 			Gateway: c.Config.NetworkConfig.Gateway,
-	// 			Mask:    "255.255.255.0",
-	// 		},
-	// 	},
-	// }}	
-	networkInterfaces := []firecracker.NetworkInterface{
-		{
-			StaticConfiguration: &firecracker.StaticNetworkConfiguration{
-				HostDevName: fmt.Sprintf("tap%s", node.ID), // tapName,
-				MacAddress:  macAddress,
-				IPConfiguration: &firecracker.IPConfiguration{
-					IfName: ifaceID,
-					IPAddr: net.IPNet{
-						IP: net.ParseIP(node.IP), // net.IP{192, 168, 1, 100},
-					},
+	networkInterfaces := []firecracker.NetworkInterface{{
+		StaticConfiguration: &firecracker.StaticNetworkConfiguration{
+			HostDevName: fmt.Sprintf("tap-%s", node.ID), // tapName,
+			// MacAddress:  macAddress,
+			IPConfiguration: &firecracker.IPConfiguration{
+				IfName: tapDevice, // ifaceID,
+				IPAddr: net.IPNet{
+					IP:   net.ParseIP(node.IP), // net.IP{192, 168, 1, 100},
+					Mask: net.CIDRMask(24, 32), // "255.255.255.0"
 				},
+				Gateway: net.ParseIP(c.Config.NetworkConfig.Gateway),
 			},
 		},
-	}
+	}}
 
 	// Create machine configuration
-	// config := firecracker.Config{
-	// 	SocketPath:      filepath.Join(node.RootPath, "firecracker.sock"),
-	// 	KernelImagePath: "/var/lib/firecracker/vmlinux", // Path to kernel image
-	// 	Drives: []models.Drive{{
-	// 		DriveID:      "1",
-	// 		PathOnHost:   rootDrive,
-	// 		IsRootDevice: true,
-	// 		IsReadOnly:   false,
-	// 	}},
-	// 	NetworkInterfaces: networkInterfaces,
-	// 	MachineCfg: models.MachineConfiguration{
-	// 		VcpuCount:  c.Config.VCPUCount,
-	// 		MemSizeMib: c.Config.MemSizeMB,
-	// 		Smt:  true,
-	// 	},
-	// 	LogPath: filepath.Join(node.RootPath, "firecracker.log"),
-	// }
 	config := firecracker.Config{
-		SocketPath: socketPath,
+		SocketPath: filepath.Join(node.RootPath, "firecracker.sock"), // socketPath,
 		MachineCfg: models.MachineConfiguration{
-			VcpuCount:  &vcpuCount,
-			MemSizeMib: &memSizeMib,
-			Smt:        &smt,
+			VcpuCount:  &c.Config.VCPUCount, // &vcpuCount,
+			MemSizeMib: &c.Config.MemSizeMB, //&memSizeMib,
+			Smt:        &smt,                // true
 		},
 		Drives: []models.Drive{
 			{
 				DriveID:      &driveID,
-				IsRootDevice: &isRootDevice,
-				IsReadOnly:   &isReadOnly,
-				PathOnHost:   &pathOnHost,
+				PathOnHost:   &rootDrive,    // &pathOnHost,
+				IsRootDevice: &isRootDevice, // true
+				IsReadOnly:   &isReadOnly,   // false
 			},
 		},
-		KernelImagePath: kernelPath,
+		KernelImagePath:   kernelPath, // Path to kernel image
 		NetworkInterfaces: networkInterfaces,
+		LogPath:           filepath.Join(node.RootPath, "firecracker.log"),
 	}
 
 	// Create and start the machine
@@ -417,4 +398,27 @@ func (c *Cluster) getJoinCommand(master *Node) (string, error) {
 	}
 
 	return strings.TrimSpace(string(output)), nil
+}
+
+func CreateTapDevice(vmID string) (string, error) {
+	tapName := fmt.Sprintf("tap-%s", vmID)
+
+	checkCmd := exec.Command("ip", "link", "show", tapName)
+	if err := checkCmd.Run(); err == nil {
+		log.Printf("TAP device %s already exists, skipping creation.", tapName)
+		return tapName, nil
+	}
+
+	createCmd := exec.Command("ip", "tuntap", "add", "dev", tapName, "mode", "tap")
+	if output, err := createCmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("failed to create TAP device %s: %v\nOutput: %s", tapName, err, string(output))
+	}
+
+	upCmd := exec.Command("ip", "link", "set", "dev", tapName, "up")
+	if output, err := upCmd.CombinedOutput(); err != nil {
+		return "",fmt.Errorf("failed to bring up TAP device %s: %v\nOutput: %s", tapName, err, string(output))
+	}
+
+	log.Printf("TAP device %s created and brought up successfully.", tapName)
+	return tapName, nil
 }
