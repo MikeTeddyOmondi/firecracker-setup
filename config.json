@@ -13,7 +13,7 @@
   "drives": [
     {
       "drive_id": "rootfs",
-      "path_on_host": "./setup/ubuntu-24.04.ext4",
+      "path_on_host": "./vhd",
       "is_root_device": true,
       "is_read_only": false
     }
