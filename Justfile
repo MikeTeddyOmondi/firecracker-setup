@@ -9,6 +9,8 @@ build_image:
 
 # Boot VM with firecracker 
 boot_vm:
+    #!/bin/bash 
+    sudo rm -rf /tmp/app.socket
     export API_SOCKET="/tmp/app.socket"
     sudo ./setup/bin/firecracker --api-sock "${API_SOCKET}" --config-file config.json
 
@@ -41,7 +43,7 @@ run_bin:
     just go_build
     just set_cap
     
-    ./firecracker-k8s \
+    sudo ./firecracker-k8s \
     --name=clxx \
     --nodes=3 \
     --memory=1024 \
