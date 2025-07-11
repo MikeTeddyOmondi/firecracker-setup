@@ -12,7 +12,8 @@ boot_vm:
     #!/bin/bash 
     sudo rm -rf /tmp/app.socket
     export API_SOCKET="/tmp/app.socket"
-    sudo ./setup/bin/firecracker --api-sock "${API_SOCKET}" --config-file config.json
+    # sudo ./setup/bin/firecracker --api-sock "${API_SOCKET}" --config-file config.json
+    sudo firecracker --api-sock "${API_SOCKET}" --config-file config.json
 
 # Remove socket
 rm_sock:
