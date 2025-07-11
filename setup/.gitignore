@@ -6,6 +6,6 @@
 *.id_rsa
 vmlinux*
 
-
+initrd/
 
 
