@@ -17,7 +17,8 @@ boot_vm:
 
 # Remove socket
 rm_sock:
-    sudo rm $API_SOCKET
+    # sudo rm $API_SOCKET
+    sudo rm -rf /tmp/app.socket
 
 # Run Go application
 go_run:    

@@ -1,6 +1,6 @@
 TAP_DEV="tap0"
-TAP_IP="172.16.0.20"
-MASK_SHORT="/30"
+TAP_IP="172.17.0.100"
+MASK_SHORT="/24"
 
 # # Create an ssh key for the rootfs
 # unsquashfs k8s-img.squashfs.upstream
@@ -44,7 +44,7 @@ sudo curl -X PUT --unix-socket "${API_SOCKET}" \
   "http://localhost/logger"
 
 KERNEL="./setup/$(ls vmlinux* | tail -1)"
-KERNEL_BOOT_ARGS="console=ttyS0 reboot=k panic=1 pci=off"
+KERNEL_BOOT_ARGS="console=ttyS0 reboot=k panic=1 pci=off ip=172.17.0.100::172.17.0.1:255.255.0.0::eth0:off"
 
 ARCH=$(uname -m)
 
