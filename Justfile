@@ -29,8 +29,8 @@ go_run:
     --vcpu=1 \
     --rootfs=./setup/k8s-img-rootfs.ext4 \
     --persistent=true \
-    --subnet=172.16.0.0/24 \
-    --gateway=172.16.0.1
+    --subnet=172.17.0.0/16 \
+    --gateway=172.17.0.1
 
 # Build Go app binary
 go_build:
@@ -50,10 +50,10 @@ run_bin:
     --nodes=3 \
     --memory=1024 \
     --vcpu=1 \
-    --rootfs=./setup/k8s-img-rootfs.ext4 \
+    --rootfs=./setup/ubuntu-24.04.ext4 \
     --persistent=true \
-    --subnet=172.16.0.0/24 \
-    --gateway=172.16.0.1
+    --subnet=172.17.0.0/16 \
+    --gateway=172.17.0.1
 
 
 # Manual tap network setting 

@@ -4,6 +4,7 @@ go 1.23.1
 
 require (
 	github.com/containerd/containerd v1.7.24
+	github.com/firecracker-microvm/firecracker-go-sdk v1.0.0
 	github.com/gin-gonic/gin v1.10.0
 	golang.org/x/crypto v0.31.0
 	k8s.io/api v0.32.0
@@ -38,7 +39,6 @@ require (
 	github.com/docker/go-events v0.0.0-20241114183025-9940093291f5 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/firecracker-microvm/firecracker-go-sdk v1.0.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.7 // indirect
 	github.com/gin-contrib/sse v1.0.0 // indirect
